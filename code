@@ -1,122 +1,141 @@
-# Grocery Store Path Optimization
-# Course: Optimization and Operations Research
-# Authors: Hela Mouakhar, Hugo Youf
 
-import math
-import random
+
 import itertools
 import matplotlib.pyplot as plt
 
-# Utility functions
+import random
 
-def euclidean_distance(a, b):
-    return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
+# Supermarket layout
 
-def total_distance(path, locations):
+AISLES_X = [2, 4, 6, 8]
+TOP_Y = 8
+BOTTOM_Y = 0
+
+ENTRANCE = (0, 0)
+CHECKOUT = (10, 0)
+
+ITEMS = {
+    1: (2, 5),
+    2: (4, 6),
+    3: (6, 5),
+    4: (8, 7),
+    5: (6, 3)
+}
+
+# Aisle-constrained distance
+
+
+def aisle_distance(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+def total_distance(order, locations):
     dist = 0
-    for i in range(len(path) - 1):
-        dist += euclidean_distance(locations[path[i]], locations[path[i+1]])
+    for i in range(len(order) - 1):
+        dist += aisle_distance(locations[order[i]], locations[order[i + 1]])
     return dist
-
-# Store generation
-
-def generate_store(n_items, seed=0):
-    random.seed(seed)
-    locations = {0: (0, 0)}  # Entrance
-    for i in range(1, n_items + 1):
-        locations[i] = (random.randint(1, 10), random.randint(1, 10))
-    locations[n_items + 1] = (12, 0)  # Checkout
-    return locations
 
 # Baseline
 
-def baseline_path(n_items):
-    return [0] + list(range(1, n_items + 1)) + [n_items + 1]
-
-# Greedy heuristic
-
-def greedy_path(locations, n_items):
-    unvisited = set(range(1, n_items + 1))
-    current = 0
-    path = [0]
-
-    while unvisited:
-        next_item = min(
-            unvisited,
-            key=lambda x: euclidean_distance(locations[current], locations[x])
-        )
-        path.append(next_item)
-        unvisited.remove(next_item)
-        current = next_item
-
-    path.append(n_items + 1)
-    return path
-
-# 2-opt local search
-
-def two_opt(path, locations):
-    best = path
-    improved = True
-
-    while improved:
-        improved = False
-        for i in range(1, len(path) - 2):
-            for j in range(i + 1, len(path) - 1):
-                new_path = path[:i] + path[i:j][::-1] + path[j:]
-                if total_distance(new_path, locations) < total_distance(best, locations):
-                    best = new_path
-                    improved = True
-        path = best
-
-    return best
+def baseline_solution(items, seed=0):
+    random.seed(seed)
+    shuffled = items.copy()
+    random.shuffle(shuffled)
+    return ['E'] + shuffled + ['C']
 
 
 # Exact solution 
-def exact_solution(locations, n_items):
-    best_path = None
+
+def exact_solution(locations, items):
+    best_order = None
     best_dist = float("inf")
 
-    for perm in itertools.permutations(range(1, n_items + 1)):
-        path = [0] + list(perm) + [n_items + 1]
-        dist = total_distance(path, locations)
+    for perm in itertools.permutations(items):
+        order = ['E'] + list(perm) + ['C']
+        dist = total_distance(order, locations)
         if dist < best_dist:
             best_dist = dist
-            best_path = path
+            best_order = order
 
-    return best_path, best_dist
+    return best_order, best_dist
 
+# Build rectilinear path
 
-# Plotting
+def aisle_path(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
 
+    if y1 <= TOP_Y / 2:
+        cross_y = BOTTOM_Y
+    else:
+        cross_y = TOP_Y
 
-def plot_path(path, locations, title):
-    x = [locations[i][0] for i in path]
-    y = [locations[i][1] for i in path]
-    plt.plot(x, y, marker="o")
+    return [(x1, y1), (x1, cross_y), (x2, cross_y), (x2, y2)]
+
+def build_full_path(order, locations):
+    full_path = []
+    for i in range(len(order) - 1):
+        segment = aisle_path(locations[order[i]], locations[order[i + 1]])
+        full_path.extend(segment[:-1])
+    full_path.append(locations[order[-1]])
+    return full_path
+
+# Plot supermarket and path
+
+def plot_supermarket(path, title):
+    plt.figure(figsize=(8, 6))
+
+    for x in AISLES_X:
+        plt.plot([x, x], [BOTTOM_Y, TOP_Y], color="black", linewidth=3)
+
+    plt.plot([0, 10], [BOTTOM_Y, BOTTOM_Y], color="black", linewidth=3)
+    plt.plot([0, 10], [TOP_Y, TOP_Y], color="black", linewidth=3)
+
+    for i, (x, y) in ITEMS.items():
+        plt.scatter(x, y, color="blue")
+        plt.text(x + 0.1, y + 0.1, f"Item {i}")
+
+    plt.scatter(*ENTRANCE, color="green", s=100)
+    plt.text(ENTRANCE[0], ENTRANCE[1] - 0.4, "Entrance")
+
+    plt.scatter(*CHECKOUT, color="red", s=100)
+    plt.text(CHECKOUT[0], CHECKOUT[1] - 0.4, "Checkout")
+
+    xs, ys = zip(*path)
+    plt.plot(xs, ys, color="orange", linewidth=2)
+
     plt.title(title)
-    plt.xlabel("x")
-    plt.ylabel("y")
+    plt.axis("equal")
     plt.grid(True)
     plt.show()
-
 
 # Main
 
 
 if __name__ == "__main__":
-    n_items = 6  # Keep small for exact solution
-    locations = generate_store(n_items)
+    locations = {"E": ENTRANCE, "C": CHECKOUT}
+    for k, v in ITEMS.items():
+        locations[k] = v
 
-    base = baseline_path(n_items)
-    greedy = greedy_path(locations, n_items)
-    greedy_2opt = two_opt(greedy, locations)
-    optimal, opt_dist = exact_solution(locations, n_items)
+    item_ids = list(ITEMS.keys())
 
-    print("Baseline distance:", total_distance(base, locations))
-    print("Greedy distance:", total_distance(greedy, locations))
-    print("Greedy + 2-opt distance:", total_distance(greedy_2opt, locations))
-    print("Optimal distance:", opt_dist)
+    # Baseline
+    baseline_order = baseline_solution(item_ids)
+    baseline_dist = total_distance(baseline_order, locations)
+    baseline_path = build_full_path(baseline_order, locations)
 
-    plot_path(base, locations, "Baseline Path")
-    plot_path(greedy, locations, "Greedy Path")
-    plot_path(greedy_2opt, locations, "Greedy + 2-opt Path")
+    # Optimal
+    optimal_order, optimal_dist = exact_solution(locations, item_ids)
+    optimal_path = build_full_path(optimal_order, locations)
+
+    # Results
+    print("Baseline order:", baseline_order)
+    print("Baseline distance:", baseline_dist)
+    print("Optimal order:", optimal_order)
+    print("Optimal distance:", optimal_dist)
+    print(
+        "Improvement (%):",
+        round(100 * (baseline_dist - optimal_dist) / baseline_dist, 2),
+    )
+
+    plot_supermarket(baseline_path, "Baseline (Shopping List Order)")
+    plot_supermarket(optimal_path, "Optimal Aisle-Constrained Path")
