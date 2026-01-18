@@ -1,12 +1,13 @@
-
+# Grocery Store Path Optimization
+# Aisle-Constrained Model
+# Course: Optimization and Operations Research
+# Authors: Hela Mouakhar, Hugo Youf
 
 import itertools
+import random
 import matplotlib.pyplot as plt
 
-import random
-
 # Supermarket layout
-
 AISLES_X = [2, 4, 6, 8]
 TOP_Y = 8
 BOTTOM_Y = 0
@@ -22,29 +23,41 @@ ITEMS = {
     5: (6, 3)
 }
 
-# Aisle-constrained distance
-
-
+# Distance
 def aisle_distance(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 def total_distance(order, locations):
-    dist = 0
-    for i in range(len(order) - 1):
-        dist += aisle_distance(locations[order[i]], locations[order[i + 1]])
-    return dist
+    return sum(
+        aisle_distance(locations[order[i]], locations[order[i + 1]])
+        for i in range(len(order) - 1)
+    )
 
 # Baseline
-
 def baseline_solution(items, seed=0):
     random.seed(seed)
     shuffled = items.copy()
     random.shuffle(shuffled)
     return ['E'] + shuffled + ['C']
 
+# 2-opt local search
+def two_opt(order, locations):
+    best = order
+    improved = True
 
-# Exact solution 
+    while improved:
+        improved = False
+        for i in range(1, len(order) - 2):
+            for j in range(i + 1, len(order) - 1):
+                new_order = best[:i] + best[i:j][::-1] + best[j:]
+                if total_distance(new_order, locations) < total_distance(best, locations):
+                    best = new_order
+                    improved = True
+        order = best
 
+    return best
+
+# Exact solution
 def exact_solution(locations, items):
     best_order = None
     best_dist = float("inf")
@@ -58,29 +71,22 @@ def exact_solution(locations, items):
 
     return best_order, best_dist
 
-# Build rectilinear path
-
+# Build feasible path
 def aisle_path(p1, p2):
     x1, y1 = p1
     x2, y2 = p2
-
-    if y1 <= TOP_Y / 2:
-        cross_y = BOTTOM_Y
-    else:
-        cross_y = TOP_Y
-
+    cross_y = BOTTOM_Y if y1 <= TOP_Y / 2 else TOP_Y
     return [(x1, y1), (x1, cross_y), (x2, cross_y), (x2, y2)]
 
 def build_full_path(order, locations):
-    full_path = []
+    path = []
     for i in range(len(order) - 1):
         segment = aisle_path(locations[order[i]], locations[order[i + 1]])
-        full_path.extend(segment[:-1])
-    full_path.append(locations[order[-1]])
-    return full_path
+        path.extend(segment[:-1])
+    path.append(locations[order[-1]])
+    return path
 
-# Plot supermarket and path
-
+# Plot
 def plot_supermarket(path, title):
     plt.figure(figsize=(8, 6))
 
@@ -109,33 +115,32 @@ def plot_supermarket(path, title):
     plt.show()
 
 # Main
-
-
 if __name__ == "__main__":
     locations = {"E": ENTRANCE, "C": CHECKOUT}
     for k, v in ITEMS.items():
         locations[k] = v
 
-    item_ids = list(ITEMS.keys())
+    items = list(ITEMS.keys())
 
-    # Baseline
-    baseline_order = baseline_solution(item_ids)
+    baseline_order = baseline_solution(items)
     baseline_dist = total_distance(baseline_order, locations)
-    baseline_path = build_full_path(baseline_order, locations)
 
-    # Optimal
-    optimal_order, optimal_dist = exact_solution(locations, item_ids)
-    optimal_path = build_full_path(optimal_order, locations)
+    opt2_order = two_opt(baseline_order, locations)
+    opt2_dist = total_distance(opt2_order, locations)
 
-    # Results
-    print("Baseline order:", baseline_order)
+    optimal_order, optimal_dist = exact_solution(locations, items)
+
     print("Baseline distance:", baseline_dist)
-    print("Optimal order:", optimal_order)
+    print("2-opt distance:", opt2_dist)
     print("Optimal distance:", optimal_dist)
     print(
-        "Improvement (%):",
-        round(100 * (baseline_dist - optimal_dist) / baseline_dist, 2),
+        "Improvement vs baseline (%):",
+        round(100 * (baseline_dist - opt2_dist) / baseline_dist, 2)
     )
 
-    plot_supermarket(baseline_path, "Baseline (Shopping List Order)")
-    plot_supermarket(optimal_path, "Optimal Aisle-Constrained Path")
+    plot_supermarket(build_full_path(baseline_order, locations),
+                     "Baseline Path")
+    plot_supermarket(build_full_path(opt2_order, locations),
+                     "2-opt Optimized Path")
+    plot_supermarket(build_full_path(optimal_order, locations),
+                     "Optimal Path (Exact)")
