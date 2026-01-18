@@ -1,16 +1,16 @@
-# Grocery Store Path Optimization 
-# Author: Hela Mouakhar, Hugo Youf
+# Grocery Store Path Optimization
+# Course: Optimization and Operations Research
+# Authors: Hela Mouakhar, Hugo Youf
 
-
-import itertools
 import math
 import random
+import itertools
+import matplotlib.pyplot as plt
 
 # Utility functions
 
 def euclidean_distance(a, b):
     return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
-
 
 def total_distance(path, locations):
     dist = 0
@@ -18,36 +18,33 @@ def total_distance(path, locations):
         dist += euclidean_distance(locations[path[i]], locations[path[i+1]])
     return dist
 
-
-# Store and data generation
-
+# Store generation
 
 def generate_store(n_items, seed=0):
     random.seed(seed)
-    locations = {0: (0, 0)}  # entrance
+    locations = {0: (0, 0)}  # Entrance
     for i in range(1, n_items + 1):
         locations[i] = (random.randint(1, 10), random.randint(1, 10))
-    locations[n_items + 1] = (12, 0)  # checkout
+    locations[n_items + 1] = (12, 0)  # Checkout
     return locations
 
-
-
-# Baseline: list order
+# Baseline
 
 def baseline_path(n_items):
     return [0] + list(range(1, n_items + 1)) + [n_items + 1]
 
+# Greedy heuristic
 
-  
-# Greedy nearest neighbor
-  
 def greedy_path(locations, n_items):
     unvisited = set(range(1, n_items + 1))
     current = 0
     path = [0]
 
     while unvisited:
-        next_item = min(unvisited, key=lambda x: euclidean_distance(locations[current], locations[x]))
+        next_item = min(
+            unvisited,
+            key=lambda x: euclidean_distance(locations[current], locations[x])
+        )
         path.append(next_item)
         unvisited.remove(next_item)
         current = next_item
@@ -55,12 +52,29 @@ def greedy_path(locations, n_items):
     path.append(n_items + 1)
     return path
 
+# 2-opt local search
+
+def two_opt(path, locations):
+    best = path
+    improved = True
+
+    while improved:
+        improved = False
+        for i in range(1, len(path) - 2):
+            for j in range(i + 1, len(path) - 1):
+                new_path = path[:i] + path[i:j][::-1] + path[j:]
+                if total_distance(new_path, locations) < total_distance(best, locations):
+                    best = new_path
+                    improved = True
+        path = best
+
+    return best
+
 
 # Exact solution 
-
 def exact_solution(locations, n_items):
     best_path = None
-    best_dist = float('inf')
+    best_dist = float("inf")
 
     for perm in itertools.permutations(range(1, n_items + 1)):
         path = [0] + list(perm) + [n_items + 1]
@@ -72,16 +86,37 @@ def exact_solution(locations, n_items):
     return best_path, best_dist
 
 
+# Plotting
+
+
+def plot_path(path, locations, title):
+    x = [locations[i][0] for i in path]
+    y = [locations[i][1] for i in path]
+    plt.plot(x, y, marker="o")
+    plt.title(title)
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.grid(True)
+    plt.show()
+
+
+# Main
 
 
 if __name__ == "__main__":
-    n_items = 6  # keep small for exact solution
+    n_items = 6  # Keep small for exact solution
     locations = generate_store(n_items)
 
     base = baseline_path(n_items)
     greedy = greedy_path(locations, n_items)
+    greedy_2opt = two_opt(greedy, locations)
     optimal, opt_dist = exact_solution(locations, n_items)
 
     print("Baseline distance:", total_distance(base, locations))
     print("Greedy distance:", total_distance(greedy, locations))
+    print("Greedy + 2-opt distance:", total_distance(greedy_2opt, locations))
     print("Optimal distance:", opt_dist)
+
+    plot_path(base, locations, "Baseline Path")
+    plot_path(greedy, locations, "Greedy Path")
+    plot_path(greedy_2opt, locations, "Greedy + 2-opt Path")
