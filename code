@@ -1,0 +1,87 @@
+# Grocery Store Path Optimization 
+# Author: Hela Mouakhar, Hugo Youf
+
+
+import itertools
+import math
+import random
+
+# Utility functions
+
+def euclidean_distance(a, b):
+    return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
+
+
+def total_distance(path, locations):
+    dist = 0
+    for i in range(len(path) - 1):
+        dist += euclidean_distance(locations[path[i]], locations[path[i+1]])
+    return dist
+
+
+# Store and data generation
+
+
+def generate_store(n_items, seed=0):
+    random.seed(seed)
+    locations = {0: (0, 0)}  # entrance
+    for i in range(1, n_items + 1):
+        locations[i] = (random.randint(1, 10), random.randint(1, 10))
+    locations[n_items + 1] = (12, 0)  # checkout
+    return locations
+
+
+
+# Baseline: list order
+
+def baseline_path(n_items):
+    return [0] + list(range(1, n_items + 1)) + [n_items + 1]
+
+
+  
+# Greedy nearest neighbor
+  
+def greedy_path(locations, n_items):
+    unvisited = set(range(1, n_items + 1))
+    current = 0
+    path = [0]
+
+    while unvisited:
+        next_item = min(unvisited, key=lambda x: euclidean_distance(locations[current], locations[x]))
+        path.append(next_item)
+        unvisited.remove(next_item)
+        current = next_item
+
+    path.append(n_items + 1)
+    return path
+
+
+# Exact solution 
+
+def exact_solution(locations, n_items):
+    best_path = None
+    best_dist = float('inf')
+
+    for perm in itertools.permutations(range(1, n_items + 1)):
+        path = [0] + list(perm) + [n_items + 1]
+        dist = total_distance(path, locations)
+        if dist < best_dist:
+            best_dist = dist
+            best_path = path
+
+    return best_path, best_dist
+
+
+
+
+if __name__ == "__main__":
+    n_items = 6  # keep small for exact solution
+    locations = generate_store(n_items)
+
+    base = baseline_path(n_items)
+    greedy = greedy_path(locations, n_items)
+    optimal, opt_dist = exact_solution(locations, n_items)
+
+    print("Baseline distance:", total_distance(base, locations))
+    print("Greedy distance:", total_distance(greedy, locations))
+    print("Optimal distance:", opt_dist)
